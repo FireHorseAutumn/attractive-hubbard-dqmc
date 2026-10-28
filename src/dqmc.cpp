@@ -183,6 +183,20 @@ Solver::Solver(Parameters params)
       lambda_(hs_lambda(params.dtau, params.abs_u)),
       kinetic_(square_lattice_kinetic(params.lx, params.ly, params.t, params.mu)),
       rng_(params.seed) {
+  build_derived();
+  initialize();
+}
+
+Solver::Solver(Parameters params, UninitializedTag)
+    : params_(params),
+      nsites_(params.lx * params.ly),
+      lambda_(hs_lambda(params.dtau, params.abs_u)),
+      kinetic_(square_lattice_kinetic(params.lx, params.ly, params.t, params.mu)),
+      rng_(params.seed) {
+  build_derived();
+}
+
+void Solver::build_derived() {
   if (nsites_ <= 0 || params_.slices <= 0 || params_.dtau <= 0.0)
     throw std::invalid_argument("invalid DQMC parameters");
   Eigen::SelfAdjointEigenSolver<Matrix> eigensolver(kinetic_);
@@ -195,7 +209,6 @@ Solver::Solver(Parameters params)
   exp_minus_k_ = vectors *
                  (-params_.dtau * values.array()).exp().matrix().asDiagonal() *
                  vectors.transpose();
-  initialize();
 }
 
 void Solver::initialize() {

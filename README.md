@@ -11,8 +11,10 @@ GPU and RDMA acceleration are not part of the current serial implementation.
 ## Current status
 
 The determinant engine, exact references, pairing observables,
-chemical-potential calibration, and current-response implementation have passed
-the existing numerical checks. CTest passes 2/2.
+chemical-potential calibration, current-response implementation, and
+versioned checksummed checkpoint/restart have passed the existing numerical
+checks, including bitwise trajectory continuation after resume. CTest passes
+3/3.
 
 - Shared incremental LDR factorization and direct inverse tests cover identity,
   diagonal, permutation, well-conditioned, and 40-factor product cases.
@@ -23,8 +25,8 @@ the existing numerical checks. CTest passes 2/2.
   beta=8, the response converges `1.38021 -> 1.29356 -> 1.28083` toward the
   exact value `1.27613` for dtau `0.2 -> 0.1 -> 0.05`.
 
-The code does not yet provide a production helicity-modulus or `Tc` result,
-checkpoint/restart equivalence, or a comparison with the published `Tc` values.
+The code does not yet provide a production helicity-modulus or `Tc` result or
+a comparison with the published `Tc` values.
 See `HANDOFF.md` for the validation record and remaining production work, and
 `docs/MODEL.md` for the equations and conventions.
 

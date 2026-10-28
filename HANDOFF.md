@@ -1,8 +1,8 @@
 # Validation and reproduction notes
 
-Updated 2026-10-18.
+Updated 2026-10-27.
 
-The determinant core and connected current-response path pass CTest 2/2.
+The determinant core and connected current-response path pass CTest 3/3.
 Long-slice responses are finite, and the beta=8 response approaches the exact
 reference as dtau decreases. Production helicity-modulus and `Tc` calculations
 remain to be done.
@@ -129,10 +129,48 @@ exact agreement at every Trotter step.
 
 ## Remaining production work
 
-1. Add and verify checkpoint/restart equivalence and a production CLI/data path.
-2. Measure performance without changing the validated numerical path.
+1. ~~Add and verify checkpoint/restart equivalence and a production CLI/data
+   path.~~ **Done 2026-10-27.** `src/checkpoint.cpp` adds versioned,
+   checksummed binary checkpoints (FNV-1a over the payload, atomic
+   tmp+rename write). The stored state is parameters, Ising fields, the
+   accumulated B matrices, the mt19937_64 stream, and the acceptance
+   counters plus a driver sweep tag — the B matrices are stored because
+   their incremental column updates accumulate rounding that a rebuild from
+   fields would not reproduce, and bitwise continuation is the design
+   requirement. `tests/test_checkpoint.cpp` verifies that a split run
+   reproduces the uninterrupted observable stream exactly (density, energy,
+   double occupancy, pair structure, -<K_x> after every sweep), that
+   counters and the sweep tag round-trip, and that a flipped payload byte
+   or bad magic is rejected. Checkpoints are valid at sweep boundaries and
+   saving requires at least one recompute flag (the boundary Green function
+   must be a pure function of the stored state). The production driver is
+   `src/dqmc_run.cpp` (`build/dqmc_run`): lattice/beta-or-T/dtau/U/seed,
+   `--mu` or `--density` (bisection calibration, coarse-grained on small
+   lattices), warmup/sweeps/measure-every, `--checkpoint`/
+   `--checkpoint-every`, `--resume` (sweeps count additionally), and JSONL
+   records carrying the helicity-modulus ingredients (density, energy,
+   double occupancy, pair structure, -<K_x>, and both connected current
+   responses at the smallest nonzero momentum per measurement: the
+   transverse Lambda_T at qx=0, qy=1 — the production channel entering
+   rho_s = (<-K_x> - Lambda_T)/4 — and the longitudinal Lambda_L at qx=1,
+   recorded as the gauge-identity check), closing with a blocking/binning
+   summary of the measured series. Full suite: CTest 3/3.
+2. ~~Measure performance without changing the validated numerical path.~~
+   **Done 2026-10-27 (quiet machine, seconds/sweep, dtau=0.1, T=0.15,
+   M=67, warmup excluded):** L=14 (N=196): 15.0; L=16 (N=256): 77.7;
+   L=18 (N=324): 137.3. The dominant cost is the per-slice stabilized Green
+   rebuild (correctness choice — do not disable without rerunning the
+   response suite). L=14→16 is worse than N^3 (5.2x for 1.31x sites); the
+   16→18 step is 1.8x — small-sample and thermal noise on a laptop, so treat
+   the exponent as unresolved. Production cost at 10k sweeps per (T, seed)
+   point: L=14 ~42 h, L=16 ~9 days, L=18 ~16 days CPU time. The temperature
+   grid and seeds are independent single-core jobs, so wall time divides by
+   core count; even so L=18 is not feasible at these sweep counts without a
+   validated recompute-cadence reduction or a smaller grid.
 3. Run `L=14,16,18` at `<n>=0.5`, `U/t=-5`, `Δτ=0.1`, with a documented
-   `Δτ=0.05` subset and independent seeds.
+   `Δτ=0.05` subset and independent seeds. Grid and statistics sized from
+   the phase-2 baseline above and an L=14 autocorrelation shakedown before
+   any long launch.
 4. Extract `ρ_s(T)` intersections with `2T/π`, reporting statistical,
    finite-size, and Trotter sensitivity. Compare pair-structure finite-size
    estimates when statistically usable.

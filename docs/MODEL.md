@@ -155,7 +155,9 @@ exhaustive-field response through M=5, nonzero-longitudinal gauge, 2D transverse
 and independently nonzero 2D momentum checks. NaN and Inf are rejected in every
 numerical comparison.
 
-Checkpoint/restart equivalence has not been implemented. Production runs remain
-to be done at `<n>=0.5`, `U/t=-5`, `L=14,16,18`, and `Δτ=0.1`, with a documented
+Checkpoint/restart is implemented: `src/checkpoint.cpp` writes versioned,
+checksummed state, and `tests/test_checkpoint.cpp` verifies bitwise
+trajectory equivalence between a resumed run and an uninterrupted one.
+Production runs remain to be done at `<n>=0.5`, `U/t=-5`, `L=14,16,18`, and `Δτ=0.1`, with a documented
 `Δτ=0.05` subset and independent seeds. Statistical, finite-size, and Trotter
 sensitivity must accompany any comparison with the published `Tc` values.

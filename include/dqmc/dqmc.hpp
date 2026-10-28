@@ -66,6 +66,15 @@ public:
   double minus_kinetic_x() const;
   CurrentResult current_response(int qx, int qy) const;
 
+  // Checkpoints are valid at sweep boundaries. Saving requires at least one
+  // recompute flag so the boundary Green function is a pure function of the
+  // stored state. The format is native-endian and versioned; a trailing
+  // checksum covers the whole payload.
+  static constexpr std::uint32_t checkpoint_version = 1;
+  void save_checkpoint(const std::string& path, std::uint64_t sweep_tag) const;
+  static Solver load_checkpoint(const std::string& path);
+  std::uint64_t sweep_tag() const { return sweep_tag_; }
+
   Matrix green_at_slice(int slice) const;
   double determinant_at_slice_zero() const;
   void set_fields_for_test(const std::vector<std::int8_t>& fields);
@@ -75,8 +84,13 @@ public:
   double lambda() const { return lambda_; }
   std::uint64_t accepted() const { return accepted_; }
   std::uint64_t attempted() const { return attempted_; }
+  const Parameters& params() const { return params_; }
 
 private:
+  struct UninitializedTag {};
+  Solver(Parameters params, UninitializedTag);
+  void build_derived();
+
   Parameters params_;
   int nsites_;
   double lambda_;
@@ -89,6 +103,7 @@ private:
   std::mt19937_64 rng_;
   std::uint64_t accepted_ = 0;
   std::uint64_t attempted_ = 0;
+  std::uint64_t sweep_tag_ = 0;
 
   void rebuild_bmatrices();
   void propagate_to_next_slice(int slice);
