@@ -94,10 +94,19 @@ private:
   Parameters params_;
   int nsites_;
   double lambda_;
+  // Ising fields are ±1, so every field-factor exponent is -2λ, 0, or +2λ;
+  // cache the three values once (same std::exp calls, same arguments as the
+  // per-element form — bitwise identical).
+  double exp_m2lambda_ = 0.0;
+  double exp_0lambda_ = 1.0;
+  double exp_p2lambda_ = 0.0;
   Matrix kinetic_;
   Matrix exp_k_;
   Matrix exp_minus_k_;
   Matrix green_;
+  Matrix scaled_scratch_;  // reusable per-slice rescale target
+  Vector rk_col_;          // reusable rank-1 update scratch
+  Vector rk_row_;
   std::vector<Matrix> bmat_;
   std::vector<std::int8_t> fields_;
   std::mt19937_64 rng_;

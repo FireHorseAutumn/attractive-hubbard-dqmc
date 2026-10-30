@@ -209,6 +209,12 @@ void Solver::build_derived() {
   exp_minus_k_ = vectors *
                  (-params_.dtau * values.array()).exp().matrix().asDiagonal() *
                  vectors.transpose();
+  exp_m2lambda_ = std::exp(-2.0 * lambda_);
+  exp_0lambda_ = std::exp(0.0 * lambda_);
+  exp_p2lambda_ = std::exp(2.0 * lambda_);
+  scaled_scratch_.resize(nsites_, nsites_);
+  rk_col_.resize(nsites_);
+  rk_row_.resize(nsites_);
 }
 
 void Solver::initialize() {
@@ -277,9 +283,18 @@ double Solver::attempt_flip(int site, int slice) {
   std::uniform_real_distribution<double> uniform(0.0, 1.0);
   if (uniform(rng_) >= weight_ratio) return ratio;
 
-  const Matrix update = (Matrix::Identity(nsites_, nsites_) - green_).col(site) *
-                        green_.row(site);
-  green_ -= (delta / ratio) * update;
+  // Rank-1 Green update without materializing the N x N outer product.
+  // Per element this is green_(i,j) -= (delta/ratio) * (col_i * row_j) with
+  // col = (I - G).col(site), row = G.row(site) — the same two multiplies in
+  // the same order as the materialized form, so the update is bitwise
+  // identical to it.
+  for (int i = 0; i < nsites_; ++i)
+    rk_col_(i) = (i == site ? 1.0 : 0.0) - green_(i, site);
+  for (int j = 0; j < nsites_; ++j) rk_row_(j) = green_(site, j);
+  const double scale = delta / ratio;
+  for (int i = 0; i < nsites_; ++i)
+    for (int j = 0; j < nsites_; ++j)
+      green_(i, j) -= scale * (rk_col_(i) * rk_row_(j));
   fields_[index] = static_cast<std::int8_t>(-fields_[index]);
   bmat_[slice].col(site) *= r;
   ++accepted_;
@@ -291,23 +306,33 @@ double Solver::flip_for_test(int site) {
   const double r = std::exp(-2.0 * lambda_ * s);
   const double delta = r - 1.0;
   const double ratio = 1.0 + delta * (1.0 - green_(site, site));
-  const Matrix update = (Matrix::Identity(nsites_, nsites_) - green_).col(site) *
-                        green_.row(site);
-  green_ -= (delta / ratio) * update;
+  for (int i = 0; i < nsites_; ++i)
+    rk_col_(i) = (i == site ? 1.0 : 0.0) - green_(i, site);
+  for (int j = 0; j < nsites_; ++j) rk_row_(j) = green_(site, j);
+  const double scale = delta / ratio;
+  for (int i = 0; i < nsites_; ++i)
+    for (int j = 0; j < nsites_; ++j)
+      green_(i, j) -= scale * (rk_col_(i) * rk_row_(j));
   fields_[site] = static_cast<std::int8_t>(-fields_[site]);
   bmat_[0].col(site) *= r;
   return ratio;
 }
 
 void Solver::propagate_to_next_slice(int slice) {
-  Matrix scaled = green_;
+  // Rescale green_ in place into the cached exp factors (fields are ±1, so
+  // the exponent is -2λ, 0, or +2λ), then multiply through reusable scratch
+  // and swap — same arithmetic as the copy-and-scale form, bitwise
+  // identical, no per-slice allocation.
   for (int i = 0; i < nsites_; ++i) {
     for (int j = 0; j < nsites_; ++j) {
-      scaled(i, j) *= std::exp(lambda_ *
-          (fields_[slice * nsites_ + i] - fields_[slice * nsites_ + j]));
+      const int df =
+          fields_[slice * nsites_ + i] - fields_[slice * nsites_ + j];
+      green_(i, j) *=
+          (df == 0) ? exp_0lambda_ : (df > 0 ? exp_p2lambda_ : exp_m2lambda_);
     }
   }
-  green_ = exp_minus_k_ * scaled * exp_k_;
+  scaled_scratch_.noalias() = exp_minus_k_ * green_ * exp_k_;
+  green_.swap(scaled_scratch_);
 }
 
 void Solver::sweep() {
